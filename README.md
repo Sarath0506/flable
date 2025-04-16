@@ -17,7 +17,7 @@ A FastAPI-based web application that performs marketing research using AI, Brave
 1. Clone the repository:
 ```bash
 git clone <repository-url>
-cd marketing-research-agent
+cd flable
 ```
 
 2. Create a virtual environment and activate it:
