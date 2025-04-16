@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Marketing Research Agent</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f0f2f5;
+        }
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 2fr 1fr;
+            gap: 20px;
+        }
+        .box {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .question-box {
+            position: sticky;
+            top: 20px;
+        }
+        .question-form input {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .question-form button {
+            width: 100%;
+            padding: 12px;
+            background-color: #0066cc;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .question-form button:hover {
+            background-color: #0052a3;
+        }
+        #response {
+            min-height: 200px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .history-list {
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .history-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .history-content {
+            flex-grow: 1;
+            cursor: pointer;
+        }
+        .delete-btn {
+            background: #ff4444;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 4px 8px;
+            cursor: pointer;
+            font-size: 12px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .history-item:hover .delete-btn {
+            opacity: 1;
+        }
+        .delete-btn:hover {
+            background: #cc0000;
+        }
+        .loading {
+            color: #666;
+            font-style: italic;
+            text-align: center;
+            padding: 20px;
+        }
+        h2 {
+            color: #333;
+            margin-top: 0;
+        }
+    </style>
+</head>
+<body>
+    <h1 style="text-align: center; color: #333;">Marketing Research Agent</h1>
+    
+    <div class="container">
+        <!-- Left Box: Question Input -->
+        <div class="box question-box">
+            <h2>Ask Question</h2>
+            <div class="question-form">
+                <input type="text" id="question" placeholder="Type your marketing question...">
+                <button onclick="askQuestion()">Ask</button>
+            </div>
+        </div>
+
+        <!-- Middle Box: Response Display -->
+        <div class="box">
+            <h2>Response</h2>
+            <div id="response"></div>
+        </div>
+
+        <!-- Right Box: History Headlines -->
+        <div class="box">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h2>Previous Questions</h2>
+                <button onclick="clearAllHistory()" style="background: #ff4444; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer;">
+                    Clear All
+                </button>
+            </div>
+            <div class="history-list">
+                {% for item in history %}
+                <div class="history-item">
+                    <div class="history-content" onclick="showFullHistory('{{ item[1] }}', '{{ item[2] }}')">
+                        <p style="margin: 0; font-weight: bold;">{{ item[1][:50] + '...' if item[1]|length > 50 else item[1] }}</p>
+                    </div>
+                    <button class="delete-btn" onclick="deleteHistory(event, '{{ item[0] }}')">&times;</button>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function askQuestion(questionText) {
+            const questionInput = document.getElementById('question');
+            const responseDiv = document.getElementById('response');
+            
+            const question = questionText || questionInput.value.trim();
+            
+            if (!question) return;
+
+            responseDiv.innerHTML = '<div class="loading">Thinking...</div>';
+            
+            const formData = new FormData();
+            formData.append('question', question);
+
+            try {
+                const response = await fetch('/ask', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                
+                responseDiv.innerHTML = `
+                    <div style="background: #f8f9fa; padding: 15px; border-radius: 4px; margin-bottom: 15px;">
+                        <strong>Question:</strong> ${question}
+                    </div>
+                    <div style="padding: 15px;">
+                        ${data.response}
+                    </div>
+                `;
+                
+                if (!questionText) {
+                    questionInput.value = '';
+                }
+
+                setTimeout(refreshHistory, 2000);
+            } catch (error) {
+                responseDiv.innerHTML = 'Error: Could not get response';
+                console.error('Error:', error);
+            }
+        }
+
+        async function refreshHistory() {
+            const response = await fetch('/history');
+            const data = await response.json();
+            const historyList = document.querySelector('.history-list');
+            
+            historyList.innerHTML = data.history.map(item => `
+                <div class="history-item">
+                    <div class="history-content" onclick="showFullHistory('${escapeHtml(item[1])}', '${escapeHtml(item[2])}')">
+                        <p style="margin: 0; font-weight: bold;">${escapeHtml(item[1].length > 50 ? item[1].substring(0, 50) + '...' : item[1])}</p>
+                    </div>
+                    <button class="delete-btn" onclick="deleteHistory(event, '${item[0]}')">&times;</button>
+                </div>
+            `).join('');
+        }
+
+        function showFullHistory(question, response) {
+            const responseDiv = document.getElementById('response');
+            responseDiv.innerHTML = response;
+            
+            document.querySelectorAll('.followup-question').forEach(question => {
+                question.onclick = () => askQuestion(question.textContent);
+            });
+        }
+
+        async function deleteHistory(event, id) {
+            event.stopPropagation();
+            
+            if (!confirm('Are you sure you want to delete this question?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/history/${id}`, {
+                    method: 'DELETE'
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                   
+                    refreshHistory();
+                    const responseDiv = document.getElementById('response');
+                    responseDiv.innerHTML = '';
+                } else {
+                    alert('Failed to delete the entry');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Failed to delete the entry');
+            }
+        }
+
+        document.getElementById('question').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                askQuestion();
+            }
+        });
+
+        async function clearAllHistory() {
+            if (!confirm('Are you sure you want to delete all history? This cannot be undone.')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/history/clear', {
+                    method: 'DELETE'
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    refreshHistory();
+                    document.getElementById('response').innerHTML = '';
+                } else {
+                    alert('Failed to clear history');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Failed to clear history');
+            }
+        }
+
+        function escapeHtml(unsafe) {
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+    </script>
+</body>
+</html> 
